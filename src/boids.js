@@ -4,10 +4,10 @@ import { V } from './vector';
  * Boidsパラメータ設定
  */
 export const CFG = {
-  sepR: 22,        // 分離範囲
-  aliR: 55,        // 整列範囲
-  cohR: 70,        // 結合範囲
-  sepF: 2.2,       // 分離の強さ
+  sepR: 38,        // 分離範囲
+  aliR: 65,        // 整列範囲
+  cohR: 85,        // 結合範囲
+  sepF: 3.0,       // 分離の強さ
   aliF: 0.7,       // 整列の強さ
   cohF: 0.5,       // 結合の強さ
   leaderF: 1.1,    // リーダー追従の強さ

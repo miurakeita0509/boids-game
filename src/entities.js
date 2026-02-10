@@ -28,6 +28,31 @@ export function mkOrb(w, h, margin = 50) {
   };
 }
 
+export function mkPowerUp(w, h, type, margin = 50) {
+  return {
+    pos: V.new(
+      margin + Math.random() * (w - margin * 2),
+      margin + Math.random() * (h - margin * 2)
+    ),
+    type,
+    pulse: Math.random() * Math.PI * 2,
+    collected: false,
+    lifetime: 600,
+  };
+}
+
+export function mkPowerOrb(w, h, margin = 80) {
+  return {
+    pos: V.new(
+      margin + Math.random() * (w - margin * 2),
+      margin + Math.random() * (h - margin * 2)
+    ),
+    pulse: Math.random() * Math.PI * 2,
+    collected: false,
+    lifetime: 900,
+  };
+}
+
 export function wrap(p, w, h) {
   let { x, y } = p;
   if (x < -20) x = w + 20;
