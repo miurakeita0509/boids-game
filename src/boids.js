@@ -17,6 +17,13 @@ export const CFG = {
   predFleeF: 3.5,  // 逃避の強さ
   predSpd: 1.6,    // 捕食者の速度
   predChaseR: 220, // 捕食者の追跡範囲
+  predSepR: 35,    // 捕食者の分離範囲
+  predAliR: 80,    // 捕食者の整列範囲
+  predCohR: 100,   // 捕食者の結合範囲
+  predSepF: 1.8,   // 捕食者の分離の強さ
+  predAliF: 0.6,   // 捕食者の整列の強さ
+  predCohF: 0.4,   // 捕食者の結合の強さ
+  predMaxFrc: 0.1, // 捕食者の最大加速度
   orbR: 16,        // オーブの半径
   collectR: 38,    // オーブ収集範囲
 };
@@ -80,6 +87,54 @@ export function boidFollow(b, ldr) {
     V.mul(V.sub(V.mul(V.norm(V.sub(ldr, b.pos)), spd), b.vel), CFG.leaderF / d * 18),
     CFG.maxFrc * 3
   );
+}
+
+/**
+ * 捕食者の分離（Separation）
+ */
+export function predSep(p, others) {
+  let s = V.new(0, 0);
+  let c = 0;
+  for (const o of others) {
+    const d = V.dist(p.pos, o.pos);
+    if (d > 0 && d < CFG.predSepR) {
+      s = V.add(s, V.mul(V.norm(V.sub(p.pos, o.pos)), 1 / d));
+      c++;
+    }
+  }
+  return c > 0 ? V.mul(V.mul(s, 1 / c), CFG.predSepF) : s;
+}
+
+/**
+ * 捕食者の整列（Alignment）
+ */
+export function predAli(p, others) {
+  let avg = V.new(0, 0);
+  let c = 0;
+  for (const o of others) {
+    const d = V.dist(p.pos, o.pos);
+    if (d > 0 && d < CFG.predAliR) {
+      avg = V.add(avg, o.vel);
+      c++;
+    }
+  }
+  return c > 0 ? V.mul(V.norm(V.mul(avg, 1 / c)), CFG.predAliF) : V.new(0, 0);
+}
+
+/**
+ * 捕食者の結合（Cohesion）
+ */
+export function predCoh(p, others) {
+  let cen = V.new(0, 0);
+  let c = 0;
+  for (const o of others) {
+    const d = V.dist(p.pos, o.pos);
+    if (d > 0 && d < CFG.predCohR) {
+      cen = V.add(cen, o.pos);
+      c++;
+    }
+  }
+  return c > 0 ? V.mul(V.norm(V.sub(V.mul(cen, 1 / c), p.pos)), CFG.predCohF) : V.new(0, 0);
 }
 
 /**

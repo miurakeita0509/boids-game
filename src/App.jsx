@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { V } from './vector';
-import { CFG, boidSep, boidAli, boidCoh, boidFollow, boidFlee } from './boids';
+import { CFG, boidSep, boidAli, boidCoh, boidFollow, boidFlee, predSep, predAli, predCoh } from './boids';
 import { mkBoid, mkPred, mkOrb, wrap } from './entities';
 import { drawMenu, drawGame, drawGameOver } from './renderer';
 
@@ -205,8 +205,10 @@ export default function App() {
             b.pos = wrap(V.add(b.pos, b.vel), w, h);
           }
 
-          // 捕食者更新
+          // 捕食者更新（群れ行動）
           for (const pred of s.preds) {
+            // 追跡対象を探す
+            let chase = V.new(0, 0);
             let near = null;
             let nd = Infinity;
             for (const b of alive) {
@@ -216,16 +218,19 @@ export default function App() {
             const ld = V.dist(pred.pos, s.leader);
             if (ld < CFG.predChaseR && ld < nd) { near = { pos: s.leader }; nd = ld; }
 
-            pred.acc = near
+            chase = near
               ? V.mul(V.norm(V.sub(near.pos, pred.pos)), 0.07)
               : V.new((Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.02);
 
-            for (const o of s.preds) {
-              if (o !== pred) {
-                const d = V.dist(pred.pos, o.pos);
-                if (d < 45) pred.acc = V.add(pred.acc, V.mul(V.norm(V.sub(pred.pos, o.pos)), 0.04));
-              }
-            }
+            // Boids群れ行動（分離・整列・結合）
+            const sep = predSep(pred, s.preds);
+            const ali = predAli(pred, s.preds);
+            const coh = predCoh(pred, s.preds);
+
+            pred.acc = V.limit(
+              V.add(V.add(V.add(chase, sep), ali), coh),
+              CFG.predMaxFrc
+            );
             pred.vel = V.limit(V.add(pred.vel, pred.acc), CFG.predSpd);
             pred.pos = wrap(V.add(pred.pos, pred.vel), w, h);
 
