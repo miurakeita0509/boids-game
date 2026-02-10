@@ -18,17 +18,31 @@ function drawGrid(ctx, w, h) {
 }
 
 /**
+ * HUD用にスクリーン座標のtransformに切り替え
+ */
+function setScreenTransform(ctx, s) {
+  ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+}
+
+/**
+ * ゲームワールド用に仮想座標のtransformに復帰
+ */
+function setWorldTransform(ctx, s) {
+  ctx.setTransform(s.dpr * s.scale, 0, 0, s.dpr * s.scale, 0, 0);
+}
+
+/**
  * メニュー画面を描画
  */
 export function drawMenu(ctx, s) {
-  const { w, h } = s;
+  const { w, h, sw, sh } = s;
   ctx.fillStyle = '#050910';
   ctx.fillRect(0, 0, w, h);
   drawGrid(ctx, w, h);
 
   s.time = (s.time || 0) + 1;
 
-  // デモ用ボイド
+  // デモ用ボイド（仮想座標で動作）
   if (!s.demoBoids) {
     s.demoBoids = Array.from({ length: 25 }, () => mkBoid(Math.random() * w, Math.random() * h));
   }
@@ -52,47 +66,53 @@ export function drawMenu(ctx, s) {
     ctx.restore();
   }
 
+  // テキストはスクリーン座標で描画
+  setScreenTransform(ctx, s);
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   const gl = 0.6 + Math.sin(s.time * 0.03) * 0.4;
   ctx.shadowColor = `rgba(0,255,200,${gl * 0.5})`;
   ctx.shadowBlur = 25;
-  ctx.font = `bold ${Math.min(w * 0.12, 52)}px 'Georgia',serif`;
+  ctx.font = `bold ${Math.min(sw * 0.12, 52)}px 'Georgia',serif`;
   ctx.fillStyle = `rgba(0,255,200,${0.8 + gl * 0.2})`;
-  ctx.fillText('B O I D S', w / 2, h * 0.32);
+  ctx.fillText('B O I D S', sw / 2, sh * 0.32);
   ctx.shadowBlur = 0;
 
-  ctx.font = `${Math.min(w * 0.045, 17)}px 'Georgia',serif`;
+  ctx.font = `${Math.min(sw * 0.045, 17)}px 'Georgia',serif`;
   ctx.fillStyle = 'rgba(140,210,200,0.7)';
-  ctx.fillText('群れを導き、光を集めよ', w / 2, h * 0.40);
+  ctx.fillText('群れを導き、光を集めよ', sw / 2, sh * 0.40);
 
-  ctx.font = `${Math.min(w * 0.032, 13)}px sans-serif`;
+  ctx.font = `${Math.min(sw * 0.032, 13)}px sans-serif`;
   ctx.fillStyle = 'rgba(100,190,180,0.55)';
-  ctx.fillText('タッチ / ドラッグで操作', w / 2, h * 0.48);
+  ctx.fillText('タッチ / ドラッグで操作', sw / 2, sh * 0.48);
 
-  const iy = h * 0.58;
-  const iconSz = Math.min(w * 0.034, 13);
+  const iy = sh * 0.58;
+  const iconSz = Math.min(sw * 0.034, 13);
   ctx.font = `bold ${iconSz}px sans-serif`;
   ctx.fillStyle = '#ffd700';
-  ctx.fillText('▲ あなた（リーダー）', w / 2, iy);
+  ctx.fillText('▲ あなた（リーダー）', sw / 2, iy);
   ctx.fillStyle = 'rgba(60,200,255,0.9)';
-  ctx.fillText('▲ 仲間のボイド', w / 2, iy + iconSz * 2.2);
+  ctx.fillText('▲ 仲間のボイド', sw / 2, iy + iconSz * 2.2);
   ctx.fillStyle = '#00ffaa';
-  ctx.fillText('● 光のオーブ（集めよう）', w / 2, iy + iconSz * 4.4);
+  ctx.fillText('● 光のオーブ（集めよう）', sw / 2, iy + iconSz * 4.4);
   ctx.fillStyle = '#ff4444';
-  ctx.fillText('✦ 捕食者（逃げろ！）', w / 2, iy + iconSz * 6.6);
+  ctx.fillText('✦ 捕食者（逃げろ！）', sw / 2, iy + iconSz * 6.6);
 
   ctx.fillStyle = `rgba(0,255,200,${0.5 + Math.sin(s.time * 0.06) * 0.3})`;
-  ctx.font = `bold ${Math.min(w * 0.042, 16)}px sans-serif`;
-  ctx.fillText('▶ タップでスタート', w / 2, h * 0.85);
+  ctx.font = `bold ${Math.min(sw * 0.042, 16)}px sans-serif`;
+  ctx.fillText('▶ タップでスタート', sw / 2, sh * 0.85);
+
+  // ワールド座標に戻す
+  setWorldTransform(ctx, s);
 }
 
 /**
  * ゲーム画面を描画
  */
 export function drawGame(ctx, s) {
-  const { w, h } = s;
+  const { w, h, sw, sh } = s;
 
   ctx.fillStyle = '#050910';
   ctx.fillRect(0, 0, w, h);
@@ -187,9 +207,11 @@ export function drawGame(ctx, s) {
   }
   ctx.globalAlpha = 1;
 
-  // HUD
-  const fs = Math.min(w * 0.038, 15);
-  const pad = Math.min(w * 0.04, 16);
+  // HUD（スクリーン座標で描画）
+  setScreenTransform(ctx, s);
+
+  const fs = Math.min(sw * 0.038, 15);
+  const pad = Math.min(sw * 0.04, 16);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.font = `bold ${fs}px 'Courier New',monospace`;
@@ -203,15 +225,15 @@ export function drawGame(ctx, s) {
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(255,220,50,0.9)';
   ctx.font = `bold ${fs * 1.3}px 'Courier New',monospace`;
-  ctx.fillText(`${s.score}`, w - pad, pad);
+  ctx.fillText(`${s.score}`, sw - pad, pad);
   ctx.font = `${fs * 0.7}px 'Courier New',monospace`;
   ctx.fillStyle = 'rgba(255,220,50,0.45)';
-  ctx.fillText('SCORE', w - pad, pad + fs * 1.5);
+  ctx.fillText('SCORE', sw - pad, pad + fs * 1.5);
 
   // プログレスバー
-  const barW = w * 0.4;
+  const barW = sw * 0.4;
   const barH = 4;
-  const barX = (w - barW) / 2;
+  const barX = (sw - barW) / 2;
   const barY = pad + 2;
   ctx.fillStyle = 'rgba(255,255,255,0.08)';
   ctx.fillRect(barX, barY, barW, barH);
@@ -221,32 +243,42 @@ export function drawGame(ctx, s) {
   grd.addColorStop(1, '#00ddff');
   ctx.fillStyle = grd;
   ctx.fillRect(barX, barY, barW * prog, barH);
+
+  // ワールド座標に戻す
+  setWorldTransform(ctx, s);
 }
 
 /**
  * ゲームオーバー画面を描画
  */
 export function drawGameOver(ctx, s) {
-  const { w, h } = s;
+  const { w, h, sw, sh } = s;
 
+  // オーバーレイは仮想座標の全画面
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, 0, w, h);
+
+  // テキストはスクリーン座標
+  setScreenTransform(ctx, s);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(255,50,50,0.7)';
   ctx.shadowBlur = 25;
-  ctx.font = `bold ${Math.min(w * 0.1, 44)}px 'Georgia',serif`;
+  ctx.font = `bold ${Math.min(sw * 0.1, 44)}px 'Georgia',serif`;
   ctx.fillStyle = '#ff4444';
-  ctx.fillText('GAME OVER', w / 2, h * 0.38);
+  ctx.fillText('GAME OVER', sw / 2, sh * 0.38);
   ctx.shadowBlur = 0;
 
-  ctx.font = `${Math.min(w * 0.04, 16)}px sans-serif`;
+  ctx.font = `${Math.min(sw * 0.04, 16)}px sans-serif`;
   ctx.fillStyle = 'rgba(200,200,200,0.8)';
-  ctx.fillText(`スコア: ${s.score}`, w / 2, h * 0.46);
-  ctx.fillText(`到達レベル: ${s.level}`, w / 2, h * 0.52);
+  ctx.fillText(`スコア: ${s.score}`, sw / 2, sh * 0.46);
+  ctx.fillText(`到達レベル: ${s.level}`, sw / 2, sh * 0.52);
 
   ctx.fillStyle = `rgba(0,255,200,${0.5 + Math.sin(s.time * 0.05) * 0.3})`;
-  ctx.font = `bold ${Math.min(w * 0.042, 16)}px sans-serif`;
-  ctx.fillText('▶ タップでリトライ', w / 2, h * 0.62);
+  ctx.font = `bold ${Math.min(sw * 0.042, 16)}px sans-serif`;
+  ctx.fillText('▶ タップでリトライ', sw / 2, sh * 0.62);
+
+  // ワールド座標に戻す
+  setWorldTransform(ctx, s);
 }

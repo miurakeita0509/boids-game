@@ -12,7 +12,7 @@ export const CFG = {
   cohF: 0.5,       // 結合の強さ
   leaderF: 1.1,    // リーダー追従の強さ
   maxSpd: 3.0,     // ボイド最大速度
-  maxFrc: 0.14,    // ボイド最大加速度
+  maxFrc: 0.5,     // ボイド力予算
   predFleeR: 100,  // 捕食者から逃げる範囲
   predFleeF: 3.5,  // 逃避の強さ
   predSpd: 1.6,    // 捕食者の速度
@@ -23,7 +23,7 @@ export const CFG = {
   predSepF: 1.8,   // 捕食者の分離の強さ
   predAliF: 0.6,   // 捕食者の整列の強さ
   predCohF: 0.4,   // 捕食者の結合の強さ
-  predMaxFrc: 0.1, // 捕食者の最大加速度
+  predMaxFrc: 0.35, // 捕食者の力予算
   orbR: 16,        // オーブの半径
   collectR: 38,    // オーブ収集範囲
 };
@@ -149,4 +149,27 @@ export function boidFlee(b, preds) {
     }
   }
   return s;
+}
+
+/**
+ * 優先度付き力の合成
+ * 配列の先頭が最優先。力予算(budget)を消費しながら順に適用する。
+ * 高優先の力が強いとき、低優先の力は削られる。
+ */
+export function applyPriority(forces, budget) {
+  let acc = V.new(0, 0);
+  let remaining = budget;
+  for (const f of forces) {
+    const mag = V.len(f);
+    if (mag <= 0) continue;
+    if (mag <= remaining) {
+      acc = V.add(acc, f);
+      remaining -= mag;
+    } else {
+      acc = V.add(acc, V.mul(V.norm(f), remaining));
+      remaining = 0;
+      break;
+    }
+  }
+  return acc;
 }

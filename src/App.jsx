@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { V } from './vector';
-import { CFG, boidSep, boidAli, boidCoh, boidFollow, boidFlee, predSep, predAli, predCoh } from './boids';
+import { CFG, boidSep, boidAli, boidCoh, boidFollow, boidFlee, predSep, predAli, predCoh, applyPriority } from './boids';
 import { mkBoid, mkPred, mkOrb, wrap } from './entities';
 import { drawMenu, drawGame, drawGameOver } from './renderer';
 
 const ST = { MENU: 0, PLAY: 1, OVER: 2 };
+const VIRTUAL_H = 700;
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -22,6 +23,9 @@ export default function App() {
     time: 0,
     w: 0,
     h: 0,
+    sw: 0,
+    sh: 0,
+    scale: 1,
     dpr: 1,
     touch: null,
     demoBoids: null,
@@ -86,24 +90,28 @@ export default function App() {
     if (!cvs) return;
     const ctx = cvs.getContext('2d');
 
-    // リサイズ処理
+    // リサイズ処理（仮想座標系）
     const resize = () => {
       const s = S.current;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const cw = window.innerWidth;
-      const ch = window.innerHeight;
-      cvs.style.width = cw + 'px';
-      cvs.style.height = ch + 'px';
-      cvs.width = cw * dpr;
-      cvs.height = ch * dpr;
-      s.w = cw;
-      s.h = ch;
+      const sw = window.innerWidth;
+      const sh = window.innerHeight;
+      cvs.style.width = sw + 'px';
+      cvs.style.height = sh + 'px';
+      cvs.width = sw * dpr;
+      cvs.height = sh * dpr;
+      const scale = sh / VIRTUAL_H;
+      s.sw = sw;
+      s.sh = sh;
+      s.w = sw / scale;
+      s.h = VIRTUAL_H;
+      s.scale = scale;
       s.dpr = dpr;
     };
     resize();
     window.addEventListener('resize', resize);
 
-    // タッチイベント
+    // タッチイベント（スクリーン→仮想座標変換）
     const onTouchStart = (e) => {
       e.preventDefault();
       const t = e.touches[0];
@@ -114,12 +122,13 @@ export default function App() {
         startGame();
         return;
       }
-      s.touch = V.new(t.clientX, t.clientY);
+      s.touch = V.new(t.clientX / s.scale, t.clientY / s.scale);
     };
     const onTouchMove = (e) => {
       e.preventDefault();
       const t = e.touches[0];
-      if (t) S.current.touch = V.new(t.clientX, t.clientY);
+      const s = S.current;
+      if (t) s.touch = V.new(t.clientX / s.scale, t.clientY / s.scale);
     };
     const onTouchEnd = (e) => {
       e.preventDefault();
@@ -129,7 +138,7 @@ export default function App() {
     cvs.addEventListener('touchmove', onTouchMove, { passive: false });
     cvs.addEventListener('touchend', onTouchEnd, { passive: false });
 
-    // マウスイベント（PC対応）
+    // マウスイベント（スクリーン→仮想座標変換）
     const onMouseDown = (e) => {
       const s = S.current;
       if (s.state === ST.MENU || s.state === ST.OVER) {
@@ -137,10 +146,11 @@ export default function App() {
         startGame();
         return;
       }
-      s.touch = V.new(e.clientX, e.clientY);
+      s.touch = V.new(e.clientX / s.scale, e.clientY / s.scale);
     };
     const onMouseMove = (e) => {
-      if (e.buttons > 0) S.current.touch = V.new(e.clientX, e.clientY);
+      const s = S.current;
+      if (e.buttons > 0) s.touch = V.new(e.clientX / s.scale, e.clientY / s.scale);
     };
     const onMouseUp = () => {
       S.current.touch = null;
@@ -166,8 +176,10 @@ export default function App() {
     // ===== ゲームループ =====
     const loop = () => {
       const s = S.current;
-      const { w, h, dpr } = s;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const { w, h, dpr, scale } = s;
+
+      // 仮想座標系のtransform: dpr * scale でスクリーンにマッピング
+      ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
 
       if (s.state === ST.MENU) {
         drawMenu(ctx, s);
@@ -191,24 +203,22 @@ export default function App() {
           s.lVel = V.limit(V.mul(V.add(s.lVel, lAcc), 0.94), 5.5);
           s.leader = wrap(V.add(s.leader, s.lVel), w, h);
 
-          // ボイド更新
+          // ボイド更新（優先度: 分離 > 逃避 > 追従 > 整列 > 結合）
           const alive = s.boids.filter((b) => b.alive);
           for (const b of alive) {
-            b.acc = V.limit(
-              V.add(
-                V.add(V.add(V.add(boidSep(b, alive), boidAli(b, alive)), boidCoh(b, alive)), boidFollow(b, s.leader)),
-                boidFlee(b, s.preds)
-              ),
-              CFG.maxFrc
-            );
+            b.acc = applyPriority([
+              boidSep(b, alive),
+              boidFlee(b, s.preds),
+              boidFollow(b, s.leader),
+              boidAli(b, alive),
+              boidCoh(b, alive),
+            ], CFG.maxFrc);
             b.vel = V.limit(V.add(b.vel, b.acc), CFG.maxSpd);
             b.pos = wrap(V.add(b.pos, b.vel), w, h);
           }
 
-          // 捕食者更新（群れ行動）
+          // 捕食者更新（優先度: 分離 > 追跡 > 整列 > 結合）
           for (const pred of s.preds) {
-            // 追跡対象を探す
-            let chase = V.new(0, 0);
             let near = null;
             let nd = Infinity;
             for (const b of alive) {
@@ -218,19 +228,16 @@ export default function App() {
             const ld = V.dist(pred.pos, s.leader);
             if (ld < CFG.predChaseR && ld < nd) { near = { pos: s.leader }; nd = ld; }
 
-            chase = near
+            const chase = near
               ? V.mul(V.norm(V.sub(near.pos, pred.pos)), 0.07)
               : V.new((Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.02);
 
-            // Boids群れ行動（分離・整列・結合）
-            const sep = predSep(pred, s.preds);
-            const ali = predAli(pred, s.preds);
-            const coh = predCoh(pred, s.preds);
-
-            pred.acc = V.limit(
-              V.add(V.add(V.add(chase, sep), ali), coh),
-              CFG.predMaxFrc
-            );
+            pred.acc = applyPriority([
+              predSep(pred, s.preds),
+              chase,
+              predAli(pred, s.preds),
+              predCoh(pred, s.preds),
+            ], CFG.predMaxFrc);
             pred.vel = V.limit(V.add(pred.vel, pred.acc), CFG.predSpd);
             pred.pos = wrap(V.add(pred.pos, pred.vel), w, h);
 
