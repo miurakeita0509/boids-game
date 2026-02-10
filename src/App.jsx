@@ -182,7 +182,7 @@ export default function App() {
     // ハイスコアリセットボタンのヒット判定（メニュー画面用）
     const isClearHit = (sx, sy) => {
       const s = S.current;
-      return s.highScores.length > 0 && sx >= s.sw / 2 - 40 && sx <= s.sw / 2 + 40 && sy >= s.sh * 0.78 && sy <= s.sh * 0.78 + 20;
+      return s.highScores.length > 0 && sx >= s.sw / 2 - 50 && sx <= s.sw / 2 + 50 && sy >= s.sh * 0.78 - 11 && sy <= s.sh * 0.78 + 11;
     };
 
     const onTouchStart = (e) => {

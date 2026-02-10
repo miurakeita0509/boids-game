@@ -139,9 +139,15 @@ export function drawMenu(ctx, s) {
 
     // クリアボタン
     const clearY = hsY + (Math.min(top3.length, 3) + 1) * (iconSz * 1.8);
-    ctx.font = `${Math.min(sw * 0.025, 10)}px sans-serif`;
-    ctx.fillStyle = 'rgba(255,80,80,0.4)';
-    ctx.fillText('[スコアリセット]', sw / 2, clearY);
+    const clearW = 100, clearH = 22;
+    ctx.fillStyle = 'rgba(255,60,60,0.15)';
+    ctx.fillRect(sw / 2 - clearW / 2, clearY - clearH / 2, clearW, clearH);
+    ctx.strokeStyle = 'rgba(255,80,80,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sw / 2 - clearW / 2, clearY - clearH / 2, clearW, clearH);
+    ctx.font = `bold ${Math.min(sw * 0.028, 11)}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,100,100,0.7)';
+    ctx.fillText('スコアリセット', sw / 2, clearY);
   }
 
   // リジューム表示
