@@ -521,8 +521,8 @@ export default function App() {
             }
 
             // パワーオーブスポーン（捕食者5体以上かつ無敵でないとき）
-            if (!s.powerOrb && !s.invincible && s.preds.length >= 5) {
-              if (Math.random() < 0.003) {
+            if (!s.powerOrb && !s.invincible && s.preds.length >= 7) {
+              if (Math.random() < 0.001) {
                 s.powerOrb = mkPowerOrb(w, h);
               }
             }
