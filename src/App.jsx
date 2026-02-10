@@ -7,6 +7,8 @@ import { saveHighScore, loadHighScores, clearHighScores, saveGameState, loadGame
 
 const ST = { MENU: 0, PLAY: 1, OVER: 2 };
 const VIRTUAL_H = 700;
+const ASPECT = 16 / 9;
+const VIRTUAL_W = VIRTUAL_H * ASPECT;
 
 function weightedRandom(items, weights) {
   const total = weights.reduce((a, b) => a + b, 0);
@@ -55,6 +57,8 @@ export default function App() {
     demoBoids: null,
     highScores: [],
     hasSave: false,
+    ox: 0,
+    oy: 0,
   });
   const [, setUi] = useState(0);
   const uiTick = useRef(0);
@@ -157,32 +161,65 @@ export default function App() {
     const resize = () => {
       const s = S.current;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const sw = window.innerWidth;
-      const sh = window.innerHeight;
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+
+      // 16:9 にフィット（レターボックス）
+      let sw, sh;
+      if (winW / winH > ASPECT) {
+        // 横が余る → 左右に黒帯
+        sh = winH;
+        sw = Math.floor(winH * ASPECT);
+      } else {
+        // 縦が余る → 上下に黒帯
+        sw = winW;
+        sh = Math.floor(winW / ASPECT);
+      }
+
+      const ox = Math.floor((winW - sw) / 2);
+      const oy = Math.floor((winH - sh) / 2);
+
       cvs.style.width = sw + 'px';
       cvs.style.height = sh + 'px';
+      cvs.style.position = 'absolute';
+      cvs.style.left = ox + 'px';
+      cvs.style.top = oy + 'px';
       cvs.width = sw * dpr;
       cvs.height = sh * dpr;
+
       const scale = sh / VIRTUAL_H;
       s.sw = sw;
       s.sh = sh;
-      s.w = sw / scale;
+      s.w = VIRTUAL_W;
       s.h = VIRTUAL_H;
       s.scale = scale;
       s.dpr = dpr;
+      s.ox = ox;
+      s.oy = oy;
     };
     resize();
     window.addEventListener('resize', resize);
 
-    // ポーズボタンのヒット判定（スクリーン座標）
+    // clientX/Y → キャンバス内スクリーン座標に変換（getBoundingClientRectで常に正確）
+    const toCanvas = (cx, cy) => {
+      const rect = cvs.getBoundingClientRect();
+      return { x: cx - rect.left, y: cy - rect.top };
+    };
+
+    // ポーズボタンのヒット判定（キャンバス内スクリーン座標）
     const isPauseHit = (sx, sy) => {
       const s = S.current;
       return sx >= s.sw - 50 && sx <= s.sw - 10 && sy >= 10 && sy <= 50;
     };
-    // ハイスコアリセットボタンのヒット判定（メニュー画面用）
+    // ハイスコアリセットボタンのヒット判定（キャンバス内スクリーン座標）
     const isClearHit = (sx, sy) => {
       const s = S.current;
-      return s.highScores.length > 0 && sx >= s.sw / 2 - 50 && sx <= s.sw / 2 + 50 && sy >= s.sh * 0.78 - 11 && sy <= s.sh * 0.78 + 11;
+      if (s.highScores.length === 0) return false;
+      const iconSz = Math.min(s.sw * 0.034, 13);
+      const hsY = s.sh * 0.65;
+      const n = Math.min(s.highScores.length, 3);
+      const clearY = hsY + (n + 1) * (iconSz * 1.8);
+      return sx >= s.sw / 2 - 50 && sx <= s.sw / 2 + 50 && sy >= clearY - 11 && sy <= clearY + 11;
     };
 
     const onTouchStart = (e) => {
@@ -190,8 +227,9 @@ export default function App() {
       const t = e.touches[0];
       if (!t) return;
       const s = S.current;
+      const c = toCanvas(t.clientX, t.clientY);
       if (s.state === ST.MENU) {
-        if (isClearHit(t.clientX, t.clientY)) {
+        if (isClearHit(c.x, c.y)) {
           clearHighScores();
           s.highScores = [];
           forceUi();
@@ -202,19 +240,22 @@ export default function App() {
       }
       if (s.state === ST.OVER) { startGame(false); return; }
       if (s.paused) { s.paused = false; forceUi(); return; }
-      if (isPauseHit(t.clientX, t.clientY)) {
+      if (isPauseHit(c.x, c.y)) {
         s.paused = true;
         saveGameState(s);
         forceUi();
         return;
       }
-      s.touch = V.new(t.clientX / s.scale, t.clientY / s.scale);
+      s.touch = V.new(c.x / s.scale, c.y / s.scale);
     };
     const onTouchMove = (e) => {
       e.preventDefault();
       const t = e.touches[0];
       const s = S.current;
-      if (t && !s.paused) s.touch = V.new(t.clientX / s.scale, t.clientY / s.scale);
+      if (t && !s.paused) {
+        const c = toCanvas(t.clientX, t.clientY);
+        s.touch = V.new(c.x / s.scale, c.y / s.scale);
+      }
     };
     const onTouchEnd = (e) => {
       e.preventDefault();
@@ -226,8 +267,9 @@ export default function App() {
 
     const onMouseDown = (e) => {
       const s = S.current;
+      const c = toCanvas(e.clientX, e.clientY);
       if (s.state === ST.MENU) {
-        if (isClearHit(e.clientX, e.clientY)) {
+        if (isClearHit(c.x, c.y)) {
           clearHighScores();
           s.highScores = [];
           forceUi();
@@ -238,17 +280,20 @@ export default function App() {
       }
       if (s.state === ST.OVER) { startGame(false); return; }
       if (s.paused) { s.paused = false; forceUi(); return; }
-      if (isPauseHit(e.clientX, e.clientY)) {
+      if (isPauseHit(c.x, c.y)) {
         s.paused = true;
         saveGameState(s);
         forceUi();
         return;
       }
-      s.touch = V.new(e.clientX / s.scale, e.clientY / s.scale);
+      s.touch = V.new(c.x / s.scale, c.y / s.scale);
     };
     const onMouseMove = (e) => {
       const s = S.current;
-      if (e.buttons > 0 && !s.paused) s.touch = V.new(e.clientX / s.scale, e.clientY / s.scale);
+      if (e.buttons > 0 && !s.paused) {
+        const c = toCanvas(e.clientX, e.clientY);
+        s.touch = V.new(c.x / s.scale, c.y / s.scale);
+      }
     };
     const onMouseUp = () => { S.current.touch = null; };
     cvs.addEventListener('mousedown', onMouseDown);
@@ -574,6 +619,12 @@ export default function App() {
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      cvs.removeEventListener('touchstart', onTouchStart);
+      cvs.removeEventListener('touchmove', onTouchMove);
+      cvs.removeEventListener('touchend', onTouchEnd);
+      cvs.removeEventListener('mousedown', onMouseDown);
+      cvs.removeEventListener('mousemove', onMouseMove);
+      cvs.removeEventListener('mouseup', onMouseUp);
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
   }, [initGame, startGame]);
@@ -593,7 +644,7 @@ export default function App() {
         userSelect: 'none',
       }}
     >
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+      <canvas ref={canvasRef} style={{ display: 'block' }} />
     </div>
   );
 }
